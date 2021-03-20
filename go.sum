@@ -1,0 +1,4 @@
+github.com/liucxer/hlog v0.0.0-20210313153704-d878b69e8150 h1:t4S0trs4wFw9JSHP1376swXiP9HEqc/ZTE/abQgpZOk=
+github.com/liucxer/hlog v0.0.0-20210313153704-d878b69e8150/go.mod h1:0a28/dyoIqpSSEV20E6W+2O5OVsbKl7s9saWy0Jlz4c=
+github.com/mattn/go-sqlite3 v1.14.6 h1:dNPt6NO46WmLVt2DLNpwczCmdV5boIZ6g/tlDrlRUbg=
+github.com/mattn/go-sqlite3 v1.14.6/go.mod h1:NyWgC/yNuGj7Q9rpYnZvas74GogHl5/Z4A/KQRfk6bU=

@@ -24,6 +24,11 @@ func NewSqliteDB(dbPath string) (*SqliteDB, error) {
 		hlog.Error("sql.Open sqlite3 err:%+v, dbPath:%s", err, dbPath)
 		return nil, err
 	}
+	// Send a ping to make sure the database connection is alive.
+	if err = db.Ping(); err != nil {
+		hlog.Error("db.Ping sqlite3 err:%+v, dbPath:%s", err, dbPath)
+		return nil, err
+	}
 	hlog.Info("sql.Open sqlite3 err:%+v, db:%+v", err, db)
 	return &SqliteDB{db: db}, nil
 }
@@ -115,7 +120,35 @@ func RowsToFields(rows *sql.Rows) (*[]Field, error) {
 	return &res, nil
 }
 
-// 2: 把Field对象复制给object
+// 把Field对象复制给object
+func FieldsToObject(fields *[]Field, object interface{}) error {
+	fieldMap := map[string]Field{}
+	for _, field := range *fields {
+		fieldMap[strings.ToUpper(field.Name)] = field
+	}
+	objectType := reflect.TypeOf(object)
+	objectValue := reflect.ValueOf(object).Elem()
+	if objectType.Kind() == reflect.Ptr {
+		objectType = objectType.Elem()
+	}
+
+	for i := 0; i < objectType.NumField(); i++ {
+		f := objectType.Field(i)
+		if field, ok := fieldMap[strings.ToUpper(f.Name)]; ok {
+			objectField := objectValue.FieldByName(f.Name)
+			if objectField.CanSet() {
+				switch field.Kind {
+				case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+					objectField.SetInt(*(field.Value.(*int64)))
+				case reflect.String:
+					objectField.SetString(*(field.Value.(*string)))
+				}
+			}
+		}
+	}
+	return nil
+}
+
 func (db *SqliteDB) QueryRowInto(object interface{}, query string, args ...interface{}) error {
 	// 结果查询
 	rows, err := db.db.Query(query, args...)
@@ -125,69 +158,14 @@ func (db *SqliteDB) QueryRowInto(object interface{}, query string, args ...inter
 	}
 	defer func() { _ = rows.Close() }()
 
-	fileds, err := RowsToFields(rows)
+	fields, err := RowsToFields(rows)
 	if err != nil {
 		return err
 	}
-	for _, field := range *fileds {
-		hlog.Info("field.Value:%+v", field.Value)
-		hlog.Info("field:%+v", field)
+	err = FieldsToObject(fields, object)
+	if err != nil {
+		return err
 	}
-	hlog.Info("fileds:%+v", fileds)
-	/*
-		_ = columnNames
-		_ = columnTypes
-		objectType := reflect.TypeOf(object)
-		objectValue := reflect.ValueOf(object).Elem()
-
-		if objectType.Kind() == reflect.Ptr {
-			objectType = objectType.Elem()
-		}
-
-		if rows.Next() {
-			_ = rows
-			items := []interface{}{}
-			rows.Scan(items...)
-			for _, column := range columnNames {
-				for i := 0; i < objectValue.NumField(); i++ {
-					f := objectType.Field(i)
-					fmt.Println(f.Name, f.Type.Kind())
-					tagName := f.Tag.Get("orm")
-					if strings.ToLower(column) == strings.ToLower(tagName) {
-						continue
-					}
-					field := objectValue.FieldByName(f.Name)
-					items = append(items)
-					if field.CanSet() {
-						switch f.Type.Kind() {
-						case reflect.Int,
-							reflect.Int8,
-							reflect.Int16,
-							reflect.Int32,
-							reflect.Int64:
-
-							field.SetInt()
-						case reflect.Uint,
-							reflect.Uint8,
-							reflect.Uint16,
-							reflect.Uint32,
-							reflect.Uint64:
-							field.SetUint()
-						}
-
-					}
-				}
-			}
-		}
-
-		//name := ""
-		//err = row.Scan(&name)
-		//if err != nil {
-		//	hlog.Error("db.Scan err:%v, query:%s, args:%+v, row:%+v, object:%+v", err, query, args, row, object)
-		//	return err
-		//}
-		hlog.Info("db.QueryRow query:%s, args:%+v, rows:%+v, object:%+v", query, args, rows, object)
-	*/
 	return nil
 }
 

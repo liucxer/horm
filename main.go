@@ -13,8 +13,8 @@ type sqliteMaster struct {
 }
 
 // 查看当前表
-func ShowTables() error {
-	db, err := NewSqliteDB("D:\\sqlite\\orm.db")
+func ShowTables(dbPath string) error {
+	db, err := NewSqliteDB(dbPath)
 	if err != nil {
 		return err
 	}
@@ -54,15 +54,13 @@ func ShowTables() error {
 	return nil
 }
 
-type Age int
-
 type User struct {
 	Name string `json:"name" orm:"name"`
-	Age  Age    `json:"age" orm:"age"`
+	Age  int    `json:"age" orm:"age"`
 }
 
-func UserTable() error {
-	db, err := NewSqliteDB("gee.db")
+func UserTable(dbPath string) error {
+	db, err := NewSqliteDB(dbPath)
 	if err != nil {
 		return err
 	}
@@ -93,21 +91,18 @@ func UserTable() error {
 		return err
 	}
 
-	//row := db.QueryRow("SELECT * FROM USER LIMIT 1")
-	//name := ""
-	//err = row.Scan(&name)
-	//if err != nil {
-	//	hlog.Error("row.Scan err:%v", err)
-	//	return err
-	//}
-
+	hlog.Info("user:%+v", user)
 	return nil
 }
 func main() {
-	err := ShowTables()
+	dbPath := "gee.db"
+	err := ShowTables(dbPath)
 	if err != nil {
 		return
 	}
 
-	_ = UserTable()
+	err = UserTable(dbPath)
+	if err != nil {
+		return
+	}
 }

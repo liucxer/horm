@@ -2,7 +2,6 @@ package main
 
 import (
 	"github.com/liucxer/hlog"
-	_ "github.com/mattn/go-sqlite3"
 )
 
 type sqliteMaster struct {
@@ -55,6 +54,10 @@ func ShowTables() error {
 	return nil
 }
 
+type User struct {
+	Name string `json:"name"`
+}
+
 func UserTable() error {
 	db, err := NewSqliteDB("gee.db")
 	if err != nil {
@@ -81,15 +84,19 @@ func UserTable() error {
 		return err
 	}
 
-	row := db.QueryRow("SELECT * FROM USER LIMIT 1")
-	name := ""
-	err = row.Scan(&name)
+	var user User
+	err = db.QueryRowInto(&user, "SELECT * FROM USER")
 	if err != nil {
-		hlog.Error("row.Scan err:%v", err)
 		return err
 	}
 
-	hlog.Info("row.Scan SELECT name:%s", name)
+	//row := db.QueryRow("SELECT * FROM USER LIMIT 1")
+	//name := ""
+	//err = row.Scan(&name)
+	//if err != nil {
+	//	hlog.Error("row.Scan err:%v", err)
+	//	return err
+	//}
 
 	return nil
 }

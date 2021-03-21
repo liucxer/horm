@@ -3,6 +3,8 @@ package main
 import (
 	"database/sql"
 	"github.com/liucxer/hlog"
+	_ "github.com/mattn/go-sqlite3"
+	"reflect"
 )
 
 type SqliteDB struct {
@@ -52,6 +54,23 @@ func (db *SqliteDB) QueryRow(query string, args ...interface{}) *sql.Row {
 	row := db.db.QueryRow(query, args...)
 	hlog.Info("db.QueryRow query:%s, args:%+v, row:%+v", query, args, row)
 	return row
+}
+
+func (db *SqliteDB) QueryRowInto(object interface{}, query string, args ...interface{}) error {
+	row := db.db.QueryRow(query, args...)
+
+	typ := reflect.TypeOf(object)
+	value := reflect.ValueOf(object)
+	_ = typ
+	_ = value
+	name := ""
+	err := row.Scan(&name)
+	if err != nil {
+		hlog.Error("db.Scan err:%v, query:%s, args:%+v, row:%+v, object:%+v", err, query, args, row, object)
+		return err
+	}
+	hlog.Info("db.QueryRow query:%s, args:%+v, row:%+v, object:%+v", query, args, row, object)
+	return nil
 }
 
 func (db *SqliteDB) Query(query string, args ...interface{}) (*sql.Rows, error) {

@@ -54,8 +54,11 @@ func ShowTables() error {
 	return nil
 }
 
+type Age int
+
 type User struct {
-	Name string `json:"name"`
+	Name string `json:"name" orm:"name"`
+	Age  Age    `json:"age" orm:"age"`
 }
 
 func UserTable() error {
@@ -73,19 +76,19 @@ func UserTable() error {
 	}
 
 	// 创建User表
-	_, err = db.Exec("CREATE TABLE USER (NAME VARCHAR(255))")
+	_, err = db.Exec("CREATE TABLE USER (NAME VARCHAR(255), AGE INT)")
 	if err != nil {
 		return err
 	}
 
 	// 往User表写一行数据
-	_, err = db.Exec("INSERT INTO USER (NAME) VALUES (?), (?)", "liucx", "wangli")
+	_, err = db.Exec("INSERT INTO USER (NAME, AGE) VALUES (?,?), (?,?)", "liucx", "30", "wangli", "18")
 	if err != nil {
 		return err
 	}
 
 	var user User
-	err = db.QueryRowInto(&user, "SELECT * FROM USER")
+	err = db.QueryRowInto(&user, "SELECT * FROM USER LIMIT 1")
 	if err != nil {
 		return err
 	}

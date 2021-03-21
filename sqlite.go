@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"errors"
 	"github.com/liucxer/hlog"
 	_ "github.com/mattn/go-sqlite3"
 	"reflect"
@@ -56,12 +57,6 @@ func (db *SqliteDB) Exec(query string, args ...interface{}) (*SqliteExecResult, 
 	return &res, err
 }
 
-func (db *SqliteDB) QueryRow(query string, args ...interface{}) *sql.Row {
-	row := db.db.QueryRow(query, args...)
-	hlog.Info("db.QueryRow query:%s, args:%+v, row:%+v", query, args, row)
-	return row
-}
-
 type Field struct {
 	Name  string
 	Kind  reflect.Kind
@@ -78,45 +73,45 @@ func RowsToFields(rows *sql.Rows) (*[]Field, error) {
 	}
 
 	res := []Field{}
-	if rows.Next() {
-		items := []interface{}{}
-		for _, columnType := range columnTypes {
-			columnTypeName := columnType.DatabaseTypeName()
-			var field Field
-			field.Name = columnType.Name()
-			switch {
-			case columnTypeName == "INT", columnTypeName == "BIGINT":
-				field.Kind = reflect.Int64
-				value := int64(0)
-				field.Value = &value
-				items = append(items, &value)
-			case strings.Contains(columnTypeName, "VARCHAR"),
-				strings.Contains(columnTypeName, "TEXT"),
-				strings.Contains(columnTypeName, "NVARCHAR"):
-				value := ""
-				field.Value = &value
-				field.Kind = reflect.String
-				items = append(items, &value)
-			case strings.Contains(columnTypeName, "DECIMAL"):
-				value := float64(0)
-				field.Value = &value
-				field.Kind = reflect.Float64
-				items = append(items, &value)
-			case strings.Contains(columnTypeName, "BOOL"):
-				value := false
-				field.Value = &value
-				field.Kind = reflect.Bool
-				items = append(items, &value)
-			}
-			res = append(res, field)
+	var items []interface{}
+	for _, columnType := range columnTypes {
+		columnTypeName := strings.ToUpper(columnType.DatabaseTypeName())
+		var field Field
+		field.Name = columnType.Name()
+		switch {
+		case strings.HasPrefix(columnTypeName, "INT"),
+			strings.HasPrefix(columnTypeName, "BIGINT"):
+			field.Kind = reflect.Int64
+			value := int64(0)
+			field.Value = &value
+			items = append(items, &value)
+		case strings.HasPrefix(columnTypeName, "VARCHAR"),
+			strings.HasPrefix(columnTypeName, "TEXT"),
+			strings.HasPrefix(columnTypeName, "NVARCHAR"):
+			value := ""
+			field.Value = &value
+			field.Kind = reflect.String
+			items = append(items, &value)
+		case strings.HasPrefix(columnTypeName, "DECIMAL"):
+			value := float64(0)
+			field.Value = &value
+			field.Kind = reflect.Float64
+			items = append(items, &value)
+		case strings.HasPrefix(columnTypeName, "BOOL"):
+			value := false
+			field.Value = &value
+			field.Kind = reflect.Bool
+			items = append(items, &value)
 		}
-
-		err = rows.Scan(items...)
-		if err != nil {
-			hlog.Error("rows.Scan err:%v, rows:%+v", err, rows)
-			return nil, err
-		}
+		res = append(res, field)
 	}
+
+	err = rows.Scan(items...)
+	if err != nil {
+		hlog.Error("rows.Scan err:%v, rows:%+v", err, rows)
+		return nil, err
+	}
+
 	return &res, nil
 }
 
@@ -138,10 +133,14 @@ func FieldsToObject(fields *[]Field, object interface{}) error {
 			objectField := objectValue.FieldByName(f.Name)
 			if objectField.CanSet() {
 				switch field.Kind {
-				case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+				case reflect.Int64:
 					objectField.SetInt(*(field.Value.(*int64)))
 				case reflect.String:
 					objectField.SetString(*(field.Value.(*string)))
+				case reflect.Bool:
+					objectField.SetBool(*(field.Value.(*bool)))
+				case reflect.Float64:
+					objectField.SetFloat(*(field.Value.(*float64)))
 				}
 			}
 		}
@@ -158,13 +157,63 @@ func (db *SqliteDB) QueryRowInto(object interface{}, query string, args ...inter
 	}
 	defer func() { _ = rows.Close() }()
 
+	if !rows.Next() {
+		hlog.Error("rows.Next is false rows:%+v", rows)
+		return errors.New("rows is empty")
+	}
+
 	fields, err := RowsToFields(rows)
 	if err != nil {
 		return err
 	}
+
 	err = FieldsToObject(fields, object)
 	if err != nil {
 		return err
+	}
+	return nil
+}
+
+func (db *SqliteDB) QueryInto(object interface{}, query string, args ...interface{}) error {
+	objectRV := reflect.ValueOf(object)
+	if objectRV.Kind() != reflect.Ptr || objectRV.IsNil() {
+		return errors.New("object must be ptr and not nil")
+	}
+
+	objectRV = objectRV.Elem()
+	// 结果查询
+	rows, err := db.db.Query(query, args...)
+	if err != nil {
+		hlog.Error("db.Query err:%v, query:%s, args:%+v, row:%+v, object:%+v", err, query, args, rows, object)
+		return err
+	}
+	defer func() { _ = rows.Close() }()
+
+	i := 0
+	for rows.Next() {
+		fields, err := RowsToFields(rows)
+		if err != nil {
+			return err
+		}
+
+		if i >= objectRV.Cap() {
+			newcap := objectRV.Cap() + objectRV.Cap()/2
+			if newcap < 4 {
+				newcap = 4
+			}
+			newv := reflect.MakeSlice(objectRV.Type(), objectRV.Len(), newcap)
+			reflect.Copy(newv, objectRV)
+			objectRV.Set(newv)
+		}
+		if i >= objectRV.Len() {
+			objectRV.SetLen(i + 1)
+		}
+
+		err = FieldsToObject(fields, objectRV.Index(i))
+		if err != nil {
+			return err
+		}
+		i++
 	}
 	return nil
 }

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
 	"github.com/liucxer/hlog"
 )
 
@@ -21,36 +23,13 @@ func ShowTables(dbPath string) error {
 
 	defer func() { _ = db.Close() }()
 
-	rows, err := db.Query("select * from sqlite_master")
+	sqliteMasters := []sqliteMaster{}
+	err = db.QueryInto(&sqliteMasters, "select * from sqlite_master limit 1")
 	if err != nil {
 		return err
 	}
-	defer func() { _ = rows.Close() }()
 
-	for {
-		if !rows.Next() {
-			break
-		}
-		t := sqliteMaster{}
-		SType := ""
-		Name := ""
-		TblName := ""
-		RootPage := 0
-		Sql := ""
-
-		err = rows.Scan(&SType, &Name, &TblName, &RootPage, &Sql)
-		if err != nil {
-			hlog.Error("rows.Scan err:%v", err)
-			return err
-		}
-		t.SType = SType
-		t.Name = Name
-		t.TblName = TblName
-		t.RootPage = RootPage
-		t.Sql = Sql
-		hlog.Info("sqliteMaster:%+v", t)
-	}
-
+	hlog.Info("sqliteMaster:%+v", sqliteMasters)
 	return nil
 }
 
@@ -73,8 +52,20 @@ func UserTable(dbPath string) error {
 		return err
 	}
 
+	// 删除Account表
+	_, err = db.Exec("DROP TABLE IF EXISTS Account")
+	if err != nil {
+		return err
+	}
+
 	// 创建User表
-	_, err = db.Exec("CREATE TABLE USER (NAME VARCHAR(255), AGE INT)")
+	_, err = db.Exec("CREATE TABLE USER (NAME VARCHAR(255), AGE INT(20))")
+	if err != nil {
+		return err
+	}
+
+	// 创建Account表
+	_, err = db.Exec("CREATE TABLE Account (NAME VARCHAR(255), AGE INT(20))")
 	if err != nil {
 		return err
 	}
@@ -105,4 +96,10 @@ func main() {
 	if err != nil {
 		return
 	}
+
+	str := "[{\"name\":\"a\", \"age\":10},{\"name\":\"b\", \"age\":20}]"
+
+	users := []User{}
+	err = json.Unmarshal([]byte(str), &users)
+	fmt.Println(users)
 }

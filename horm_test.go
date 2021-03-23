@@ -1,7 +1,9 @@
-package main
+package horm_test
 
 import (
 	"github.com/liucxer/hlog"
+	"github.com/liucxer/horm"
+	"testing"
 )
 
 type sqliteMaster struct {
@@ -14,7 +16,7 @@ type sqliteMaster struct {
 
 // 查看当前表
 func ShowTables(dbPath string) error {
-	db, err := NewSqliteDB(dbPath)
+	db, err := horm.NewSqliteDB(dbPath)
 	if err != nil {
 		return err
 	}
@@ -32,12 +34,13 @@ func ShowTables(dbPath string) error {
 }
 
 type User struct {
-	Name string `json:"name" orm:"name"`
-	Age  int    `json:"age" orm:"age"`
+	Name   string `json:"name"`
+	Age    int    `json:"age"`
+	Height int    `json:"height"`
 }
 
 func UserTable(dbPath string) error {
-	db, err := NewSqliteDB(dbPath)
+	db, err := horm.NewSqliteDB(dbPath)
 	if err != nil {
 		return err
 	}
@@ -45,19 +48,19 @@ func UserTable(dbPath string) error {
 	defer func() { _ = db.Close() }()
 
 	// 删除User表
-	_, err = db.Exec("DROP TABLE IF EXISTS USER")
+	_, err = horm.DropTable("user").WithDB(db).Exec()
 	if err != nil {
 		return err
 	}
 
 	// 删除Account表
-	_, err = db.Exec("DROP TABLE IF EXISTS Account")
+	_, err = horm.DropTable("account").WithDB(db).Exec()
 	if err != nil {
 		return err
 	}
 
 	// 创建User表
-	_, err = db.Exec("CREATE TABLE USER (NAME VARCHAR(255), AGE INT(20))")
+	_, err = db.Exec("CREATE TABLE USER (NAME VARCHAR(255), AGE INT(20), Height float64)")
 	if err != nil {
 		return err
 	}
@@ -69,7 +72,7 @@ func UserTable(dbPath string) error {
 	}
 
 	// 往User表写一行数据
-	_, err = db.Exec("INSERT INTO USER (NAME, AGE) VALUES (?,?), (?,?)", "liucx", "30", "wangli", "18")
+	_, err = db.Exec("INSERT INTO USER (NAME, AGE, HEIGHT) VALUES (?,?,?), (?,?,?)", "liucx", "30", "168.1", "wangli", "18", "168.2")
 	if err != nil {
 		return err
 	}
@@ -84,7 +87,7 @@ func UserTable(dbPath string) error {
 	return nil
 }
 
-func main() {
+func TestDropTable(t *testing.T) {
 	var err error
 	dbPath := "gee.db"
 	err = ShowTables(dbPath)

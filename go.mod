@@ -1,4 +1,4 @@
-module horm
+module github.com/liucxer/horm
 
 go 1.16
 

@@ -1,14 +1,22 @@
-package main
+package horm
 
 import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/liucxer/hlog"
 	_ "github.com/mattn/go-sqlite3"
 	"reflect"
 	"strings"
 )
+
+type DB interface {
+	Exec(query string, args ...interface{}) (*SqliteExecResult, error)
+	QueryRowInto(object interface{}, query string, args ...interface{}) error
+	QueryInto(object interface{}, query string, args ...interface{}) error
+	Close() error
+}
 
 type SqliteDB struct {
 	db *sql.DB
@@ -104,7 +112,8 @@ func (fieldLists *FieldLists) Marshal() ([]byte, error) {
 			case reflect.Bool:
 				itemMap[field.Name] = *(field.Value.(*bool))
 			default:
-				return nil, errors.New("unknown kind")
+				hlog.Error("unknown kind field.Kind:%d", field.Kind)
+				return nil, errors.New(fmt.Sprintf("unknown kind field.Kind:%d", field.Kind))
 			}
 		}
 		tmpMap = append(tmpMap, itemMap)
@@ -142,7 +151,8 @@ func RowsToFields(rows *sql.Rows) (*[]Field, error) {
 			field.Value = &value
 			field.Kind = reflect.String
 			items = append(items, &value)
-		case strings.HasPrefix(columnTypeName, "DECIMAL"):
+		case strings.HasPrefix(columnTypeName, "DECIMAL"),
+			strings.HasPrefix(columnTypeName, "FLOAT"):
 			value := float64(0)
 			field.Value = &value
 			field.Kind = reflect.Float64
@@ -152,6 +162,9 @@ func RowsToFields(rows *sql.Rows) (*[]Field, error) {
 			field.Value = &value
 			field.Kind = reflect.Bool
 			items = append(items, &value)
+		default:
+			hlog.Error("unknown columnTypeName columnTypeName:%s", columnTypeName)
+			return nil, errors.New(fmt.Sprintf("unknown columnTypeName columnTypeName:%s", columnTypeName))
 		}
 		res = append(res, field)
 	}
@@ -192,7 +205,13 @@ func (db *SqliteDB) QueryRowInto(object interface{}, query string, args ...inter
 
 	err = json.Unmarshal(bts, object)
 	if err != nil {
+		hlog.Error("json.Unmarshal err:%v", err)
 		return err
+	}
+
+	if rows.Next() {
+		hlog.Error("rows.Next is true rows:%+v", rows)
+		return errors.New("rows is not only one line")
 	}
 	return nil
 }

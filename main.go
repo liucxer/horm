@@ -1,8 +1,6 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
 	"github.com/liucxer/hlog"
 )
 
@@ -24,7 +22,7 @@ func ShowTables(dbPath string) error {
 	defer func() { _ = db.Close() }()
 
 	sqliteMasters := []sqliteMaster{}
-	err = db.QueryInto(&sqliteMasters, "select * from sqlite_master limit 1")
+	err = db.QueryInto(&sqliteMasters, "select * from sqlite_master")
 	if err != nil {
 		return err
 	}
@@ -85,9 +83,11 @@ func UserTable(dbPath string) error {
 	hlog.Info("user:%+v", user)
 	return nil
 }
+
 func main() {
+	var err error
 	dbPath := "gee.db"
-	err := ShowTables(dbPath)
+	err = ShowTables(dbPath)
 	if err != nil {
 		return
 	}
@@ -96,10 +96,4 @@ func main() {
 	if err != nil {
 		return
 	}
-
-	str := "[{\"name\":\"a\", \"age\":10},{\"name\":\"b\", \"age\":20}]"
-
-	users := []User{}
-	err = json.Unmarshal([]byte(str), &users)
-	fmt.Println(users)
 }

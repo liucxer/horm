@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"github.com/liucxer/hlog"
 	_ "github.com/mattn/go-sqlite3"
@@ -63,6 +64,55 @@ type Field struct {
 	Value interface{}
 }
 
+type FieldList []Field
+
+func (fieldList *FieldList) Marshal() ([]byte, error) {
+	tmpMap := map[string]interface{}{}
+
+	for _, field := range *fieldList {
+		switch field.Kind {
+		case reflect.Int64:
+			tmpMap[field.Name] = *(field.Value.(*int64))
+		case reflect.String:
+			tmpMap[field.Name] = *(field.Value.(*string))
+		case reflect.Float64:
+			tmpMap[field.Name] = *(field.Value.(*float64))
+		case reflect.Bool:
+			tmpMap[field.Name] = *(field.Value.(*bool))
+		default:
+			return nil, errors.New("unknown kind")
+		}
+	}
+	return json.Marshal(tmpMap)
+}
+
+type FieldLists []FieldList
+
+func (fieldLists *FieldLists) Marshal() ([]byte, error) {
+	tmpMap := []map[string]interface{}{}
+
+	for _, fieldList := range *fieldLists {
+		itemMap := map[string]interface{}{}
+		for _, field := range fieldList {
+			switch field.Kind {
+			case reflect.Int64:
+				itemMap[field.Name] = *(field.Value.(*int64))
+			case reflect.String:
+				itemMap[field.Name] = *(field.Value.(*string))
+			case reflect.Float64:
+				itemMap[field.Name] = *(field.Value.(*float64))
+			case reflect.Bool:
+				itemMap[field.Name] = *(field.Value.(*bool))
+			default:
+				return nil, errors.New("unknown kind")
+			}
+		}
+		tmpMap = append(tmpMap, itemMap)
+	}
+
+	return json.Marshal(tmpMap)
+}
+
 // 把rows中的数据转换成Field数组
 func RowsToFields(rows *sql.Rows) (*[]Field, error) {
 	// 获取每列类型
@@ -115,39 +165,6 @@ func RowsToFields(rows *sql.Rows) (*[]Field, error) {
 	return &res, nil
 }
 
-// 把Field对象复制给object
-func FieldsToObject(fields *[]Field, object interface{}) error {
-	fieldMap := map[string]Field{}
-	for _, field := range *fields {
-		fieldMap[strings.ToUpper(field.Name)] = field
-	}
-	objectType := reflect.TypeOf(object)
-	objectValue := reflect.ValueOf(object).Elem()
-	if objectType.Kind() == reflect.Ptr {
-		objectType = objectType.Elem()
-	}
-
-	for i := 0; i < objectType.NumField(); i++ {
-		f := objectType.Field(i)
-		if field, ok := fieldMap[strings.ToUpper(f.Name)]; ok {
-			objectField := objectValue.FieldByName(f.Name)
-			if objectField.CanSet() {
-				switch field.Kind {
-				case reflect.Int64:
-					objectField.SetInt(*(field.Value.(*int64)))
-				case reflect.String:
-					objectField.SetString(*(field.Value.(*string)))
-				case reflect.Bool:
-					objectField.SetBool(*(field.Value.(*bool)))
-				case reflect.Float64:
-					objectField.SetFloat(*(field.Value.(*float64)))
-				}
-			}
-		}
-	}
-	return nil
-}
-
 func (db *SqliteDB) QueryRowInto(object interface{}, query string, args ...interface{}) error {
 	// 结果查询
 	rows, err := db.db.Query(query, args...)
@@ -167,7 +184,13 @@ func (db *SqliteDB) QueryRowInto(object interface{}, query string, args ...inter
 		return err
 	}
 
-	err = FieldsToObject(fields, object)
+	fieldList := FieldList(*fields)
+	bts, err := fieldList.Marshal()
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(bts, object)
 	if err != nil {
 		return err
 	}
@@ -189,42 +212,25 @@ func (db *SqliteDB) QueryInto(object interface{}, query string, args ...interfac
 	}
 	defer func() { _ = rows.Close() }()
 
-	i := 0
+	fieldLists := FieldLists{}
 	for rows.Next() {
 		fields, err := RowsToFields(rows)
 		if err != nil {
 			return err
 		}
 
-		if i >= objectRV.Cap() {
-			newcap := objectRV.Cap() + objectRV.Cap()/2
-			if newcap < 4 {
-				newcap = 4
-			}
-			newv := reflect.MakeSlice(objectRV.Type(), objectRV.Len(), newcap)
-			reflect.Copy(newv, objectRV)
-			objectRV.Set(newv)
-		}
-		if i >= objectRV.Len() {
-			objectRV.SetLen(i + 1)
-		}
+		fieldList := FieldList(*fields)
+		fieldLists = append(fieldLists, fieldList)
+	}
 
-		err = FieldsToObject(fields, objectRV.Index(i))
-		if err != nil {
-			return err
-		}
-		i++
+	bts, err := fieldLists.Marshal()
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(bts, object)
+	if err != nil {
+		return err
 	}
 	return nil
-}
-
-func (db *SqliteDB) Query(query string, args ...interface{}) (*sql.Rows, error) {
-	rows, err := db.db.Query(query, args...)
-	if err != nil {
-		hlog.Error("db.Query err:%+v, query:%s, args:%+v", err, query, args)
-		return nil, err
-	}
-
-	hlog.Info("db.QueryRow query:%s, args:%+v, rows:%+v", query, args, rows)
-	return rows, nil
 }

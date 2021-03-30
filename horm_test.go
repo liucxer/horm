@@ -1,9 +1,10 @@
 package horm_test
 
 import (
+	"testing"
+
 	"github.com/liucxer/hlog"
 	"github.com/liucxer/horm"
-	"testing"
 )
 
 type sqliteMaster struct {
@@ -34,9 +35,22 @@ func ShowTables(dbPath string) error {
 }
 
 type User struct {
-	Name   string `json:"name"`
-	Age    int    `json:"age"`
-	Height int    `json:"height"`
+	Name   string  `json:"name" orm:"name"`
+	Age    int     `json:"age" orm:"age"`
+	Height float64 `json:"height" orm:"height"`
+}
+
+func (u User) TableName() string {
+	return "user"
+}
+
+type Account struct {
+	Name string `json:"name" orm:"name"`
+	Age  int    `json:"age" orm:"age"`
+}
+
+func (u Account) TableName() string {
+	return "account"
 }
 
 func UserTable(dbPath string) error {
@@ -48,13 +62,13 @@ func UserTable(dbPath string) error {
 	defer func() { _ = db.Close() }()
 
 	// 删除User表
-	_, err = horm.DropTable("user").WithDB(db).Exec()
+	_, err = horm.DropTable(User{}).WithDB(db).Exec()
 	if err != nil {
 		return err
 	}
 
 	// 删除Account表
-	_, err = horm.DropTable("account").WithDB(db).Exec()
+	_, err = horm.DropTable(Account{}).WithDB(db).Exec()
 	if err != nil {
 		return err
 	}

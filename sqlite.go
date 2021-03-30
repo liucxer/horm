@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/liucxer/hlog"
-	_ "github.com/mattn/go-sqlite3"
 	"reflect"
 	"strings"
+
+	"github.com/liucxer/hlog"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 type DB interface {
@@ -34,7 +35,8 @@ func NewSqliteDB(dbPath string) (*SqliteDB, error) {
 		hlog.Error("sql.Open sqlite3 err:%+v, dbPath:%s", err, dbPath)
 		return nil, err
 	}
-	// Send a ping to make sure the database connection is alive.
+
+	// 数据库连通性测试
 	if err = db.Ping(); err != nil {
 		hlog.Error("db.Ping sqlite3 err:%+v, dbPath:%s", err, dbPath)
 		return nil, err
@@ -54,12 +56,15 @@ func (db *SqliteDB) Close() error {
 }
 
 func (db *SqliteDB) Exec(query string, args ...interface{}) (*SqliteExecResult, error) {
+	// sql语句执行
 	res := SqliteExecResult{}
 	result, err := db.db.Exec(query, args...)
 	if err != nil {
 		hlog.Error("db.Exec err:%+v, query:%s, args:%+v", err, query, args)
 		return nil, err
 	}
+
+	// 获取最后一行插入id和影响行数
 	res.LastInsertID, _ = result.LastInsertId()
 	res.RowsAffected, _ = result.RowsAffected()
 	hlog.Info("db.Exec err:%+v, query:%s, args:%+v, res:%+v", err, query, args, res)
@@ -136,7 +141,7 @@ func RowsToFields(rows *sql.Rows) (*[]Field, error) {
 	for _, columnType := range columnTypes {
 		columnTypeName := strings.ToUpper(columnType.DatabaseTypeName())
 		var field Field
-		field.Name = columnType.Name()
+		field.Name = strings.ToLower(columnType.Name())
 		switch {
 		case strings.HasPrefix(columnTypeName, "INT"),
 			strings.HasPrefix(columnTypeName, "BIGINT"):

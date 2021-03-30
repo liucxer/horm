@@ -19,8 +19,12 @@ type dropTable struct {
 	DB
 }
 
-func DropTable(TableName string) *dropTable {
-	return &dropTable{TableName: TableName}
+type TableName interface {
+	TableName() string
+}
+
+func DropTable(object TableName) *dropTable {
+	return &dropTable{TableName: object.TableName()}
 }
 
 func (d *dropTable) WithDB(db DB) *dropTable {

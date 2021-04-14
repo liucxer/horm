@@ -72,9 +72,10 @@ func (db *SqliteDB) Exec(query string, args ...interface{}) (*SqliteExecResult, 
 }
 
 type Field struct {
-	Name  string
-	Kind  reflect.Kind
-	Value interface{}
+	TagName string
+	Name    string
+	Kind    reflect.Kind
+	Value   interface{}
 }
 
 type FieldList []Field
@@ -125,6 +126,29 @@ func (fieldLists *FieldLists) Marshal() ([]byte, error) {
 	}
 
 	return json.Marshal(tmpMap)
+}
+
+func DBModelToFields(dbModel DBModel) (*[]Field, error) {
+	rt := reflect.TypeOf(dbModel)
+	if rt.Kind() != reflect.Ptr {
+		return nil, errors.New("dbModel must be ptr to struct")
+	}
+
+	rv := reflect.ValueOf(dbModel)
+
+	elem := rv.Elem()
+	if elem.Kind() != reflect.Struct {
+		return nil, errors.New("dbModel must be ptr to struct")
+	}
+
+	typeOfType := elem.Type()
+	for i := 0; i < elem.NumField(); i++ {
+		field := elem.Field(i)
+		fmt.Printf("%d. %s %s = %v ormTag:%+v \n",
+			i, typeOfType.Field(i).Name, field.Type(), field.Interface(), typeOfType.Field(i).Tag.Get("orm"))
+	}
+
+	return nil, nil
 }
 
 // 把rows中的数据转换成Field数组
@@ -257,4 +281,22 @@ func (db *SqliteDB) QueryInto(object interface{}, query string, args ...interfac
 		return err
 	}
 	return nil
+}
+
+type DBModel interface {
+	TableName() string
+}
+
+func (db *SqliteDB) DropTable(model DBModel) error {
+	_, err := db.Exec("DROP TABLE " + strings.ToUpper(model.TableName()))
+	return err
+}
+
+func (db *SqliteDB) CreateTable(model DBModel) error {
+	_, err := db.Exec("CREATE TABLE " + strings.ToUpper(model.TableName()) + " (NAME VARCHAR(255), AGE INT(20), Height float64")
+	return err
+}
+
+func (db *SqliteDB) List(object interface{}, query string, args ...interface{}) error {
+	return db.QueryInto(object, query, args...)
 }

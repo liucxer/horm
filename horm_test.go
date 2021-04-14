@@ -7,14 +7,6 @@ import (
 	"github.com/liucxer/horm"
 )
 
-type sqliteMaster struct {
-	SType    string `json:"type"`
-	Name     string `json:"name"`
-	TblName  string `json:"tbl_name"`
-	RootPage int    `json:"rootpage"`
-	Sql      string `json:"sql"`
-}
-
 // 查看当前表
 func ShowTables(dbPath string) error {
 	db, err := horm.NewSqliteDB(dbPath)
@@ -25,7 +17,7 @@ func ShowTables(dbPath string) error {
 	defer func() { _ = db.Close() }()
 
 	sqliteMasters := []sqliteMaster{}
-	err = db.QueryInto(&sqliteMasters, "select * from sqlite_master")
+	err = db.List(&sqliteMasters, "")
 	if err != nil {
 		return err
 	}
@@ -62,19 +54,19 @@ func UserTable(dbPath string) error {
 	defer func() { _ = db.Close() }()
 
 	// 删除User表
-	_, err = horm.DropTable(User{}).WithDB(db).Exec()
+	err = db.DropTable(User{})
 	if err != nil {
 		return err
 	}
 
 	// 删除Account表
-	_, err = horm.DropTable(Account{}).WithDB(db).Exec()
+	err = db.DropTable(Account{})
 	if err != nil {
 		return err
 	}
 
 	// 创建User表
-	_, err = db.Exec("CREATE TABLE USER (NAME VARCHAR(255), AGE INT(20), Height float64)")
+	err = db.CreateTable(User{})
 	if err != nil {
 		return err
 	}
@@ -104,10 +96,10 @@ func UserTable(dbPath string) error {
 func TestDropTable(t *testing.T) {
 	var err error
 	dbPath := "gee.db"
-	err = ShowTables(dbPath)
-	if err != nil {
-		return
-	}
+	//err = ShowTables(dbPath)
+	//if err != nil {
+	//	return
+	//}
 
 	err = UserTable(dbPath)
 	if err != nil {
